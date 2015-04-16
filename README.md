@@ -1,7 +1,7 @@
 ScalaZK
 =================================
 
-A Scala wrapper around Curator to make is non-blocking and Scala friendly
+A Scala wrapper around Apache Curator to make it non-blocking and Scala friendly
 
 #State ALPHA 
 
