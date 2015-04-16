@@ -1,4 +1,4 @@
-package me.lighspeed7.scalazk
+package me.lightspeed7.scalazk
 
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -6,9 +6,6 @@ import org.apache.zookeeper.KeeperException
 import org.scalatest.FunSuite
 import org.scalatest.Matchers._
 
-import me.lightspeed7.scalazk.ZooKeeperConfiguration
-
-@org.junit.runner.RunWith(classOf[org.scalatest.junit.JUnitRunner])
 class ZkClientTest extends FunSuite with TestHelper {
 
   test("initialize a ZkClient instance ") {

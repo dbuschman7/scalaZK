@@ -1,4 +1,4 @@
-package me.lighspeed7.scalazk
+package me.lightspeed7.scalazk
 
 import java.util.concurrent.TimeUnit
 
@@ -10,7 +10,6 @@ import org.scalatest.Matchers._
 
 import me.lightspeed7.scalazk._
 
-@org.junit.runner.RunWith(classOf[org.scalatest.junit.JUnitRunner])
 class ConfigurationTest extends FunSuite with TestHelper {
 
   test("duration should have distinct units") {
