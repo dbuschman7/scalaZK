@@ -1,16 +1,19 @@
 package me.lightspeed7.scalazk
 
 import java.util.concurrent.TimeUnit
-
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.duration.FiniteDuration
-
 import org.scalatest.FunSuite
 import org.scalatest.Matchers._
-
 import me.lightspeed7.scalazk._
+import org.apache.curator.framework.api.CuratorListener
+import java.util.concurrent.atomic.AtomicInteger
+import scala.concurrent.Await
+import scala.util.Failure
 
 class ConfigurationTest extends FunSuite with TestHelper {
+
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   test("duration should have distinct units") {
     val test1 = 5 minutes
@@ -26,10 +29,10 @@ class ConfigurationTest extends FunSuite with TestHelper {
   }
 
   test("ZK Configuration  should store and recall values, and leave cleaned up") {
-    testSetAndGetOnConfig(ZooKeeperConfiguration(client))
+    Await.result(Configuration.initialize(client) map { zk => testSetAndGetOnConfig(zk) }, timeout)
 
-    val actual = dumpZKTree(client)
-    val expected = """+ root = 
+    val actual = dumpZKTree(client, "tree")
+    val expected = """+ tree = 
 |  + dir1 = 
 |  |  + dir2 = 
 |  |  |  + value = 1234
@@ -38,31 +41,49 @@ class ConfigurationTest extends FunSuite with TestHelper {
 |  + int = 123
 |  + string = value
 """
-
     actual should be(expected)
   }
 
+  test("Watcher support") {
+
+    val count = new AtomicInteger(0)
+
+    val listener = Watcher.addWatcher(client, "/foo") { context =>
+      println(s"Event - ${context.event}")
+      count.incrementAndGet()
+    }
+
+    val ready = Await.ready(listener, timeout)
+
+    ready.map { context =>
+      Configuration.initialize(client) map { zk =>
+        Await.result(zk.setValue("foo/baz", "bar"), timeout)
+        Thread.sleep(1000)
+        count.get should be(1)
+      }
+    }
+
+  }
 
   //
   // Private methods
   // /////////////////////////////
   def testSetAndGetOnConfig(config: Configuration) = {
-    config.setValue("int", 123)
-    config.setValue("long", 1234L)
-    config.setValue("duration", 5 hours)
-    config.setValue("string", "value")
-
-    config.setValue("/dir1/dir2/value", 1234L)
+    Await.result(config.setValue("tree/int", 123), timeout)
+    Await.result(config.setValue("tree/long", 1234L), timeout)
+    Await.result(config.setValue("tree/duration", 5 hours), timeout)
+    Await.result(config.setValue("tree/string", "value"), timeout)
+    Await.result(config.setValue("tree/dir1/dir2/value", 1234L), timeout)
 
     // test
-    123 should be(config.getValue("int", 321))
-    1234L should be(config.getValue("long", 4321L))
-    (5 hours).toString should be(config.getValue("duration", 2 seconds).toString)
-    "value" should be(config.getValue("string", "default"))
-    1234L should be(config.getValue("/dir1/dir2/value", 54321L))
+    123 should be(Await.result(config.getValue("tree/int", 321), timeout))
+    1234L should be(Await.result(config.getValue("tree/long", 4321L), timeout))
+    (5 hours).toString should be(Await.result(config.getValue("tree/duration", 2 seconds), timeout).toString)
+    "value" should be(Await.result(config.getValue("tree/string", "default"), timeout))
+    1234L should be(Await.result(config.getValue("tree/dir1/dir2/value", 54321L), timeout))
   }
 
-  def dumpZKTree(client: ZkClient): String = {
+  def dumpZKTree(client: ZkClient, path: String): String = {
     def pad(level: Int, buf: String): String = {
       level match {
         case 0 => buf
@@ -71,7 +92,9 @@ class ConfigurationTest extends FunSuite with TestHelper {
     }
 
     val buf: StringBuffer = new StringBuffer
-    ZooKeeperTree(client).displayTree({ e => buf.append(s"${pad(e.level, "")}+ ${e.name} = ${new String(e.value)}\n") })
+    new ZooKeeperTree(client, path).displayTree(path) { e =>
+      buf.append(s"${pad(e.level, "")}+ ${e.name} = ${new String(e.value)}\n")
+    }
     buf.toString()
   }
 }

@@ -14,6 +14,10 @@ import javax.naming.Name
 import org.apache.curator.framework.recipes.locks.InterProcessMutex
 import scala.util.Failure
 import scala.concurrent.ExecutionContext
+import scala.util.Try
+import org.apache.curator.utils.ZKPaths
+import org.apache.curator.utils.InternalACLProvider
+import org.apache.zookeeper.data.Stat
 
 object ZkClient {
   def ZkClientBuilder(serverList: Seq[InetSocketAddress]) = builder(serverList)
@@ -95,6 +99,28 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
       case STARTED => Future.successful(this) // Do NOT complain
       case STOPPED => Future failed new IllegalStateException("Stop has been called on client")
       case state   => Future failed new IllegalStateException(s"Unknown curator state encountered ${state}")
+    }
+  }
+
+  def mkdirs(path: String)(implicit ec: ExecutionContext): Future[Try[Unit]] = {
+    mkdirs(path, true, null)
+  }
+
+  def mkdirs(path: String, makeLastNode: Boolean)(implicit ec: ExecutionContext): Future[Try[Unit]] = {
+    mkdirs(path, makeLastNode, null)
+  }
+
+  def mkdirs(path: String, makeLastNode: Boolean, aclProvider: InternalACLProvider)(implicit ec: ExecutionContext): Future[Try[Unit]] = {
+    WrapInFuture.andCatch(this) { client =>
+      ZKPaths.mkdirs(client.curator.getZookeeperClient().getZooKeeper(), path, makeLastNode, aclProvider)
+    }
+  }
+
+  def ensurePath(path: String)(implicit ec: ExecutionContext): Future[Try[Boolean]] = {
+    WrapInFuture.andCatch(this) { client =>
+      val fullPath = path
+      new EnsurePath(fullPath).ensure(curator.getZookeeperClient())
+      true
     }
   }
 

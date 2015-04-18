@@ -5,16 +5,16 @@ import scala.collection.JavaConverters.asScalaBufferConverter
 
 case class Entry(level: Int, path: String, name: String, value: String)
 
-case class ZooKeeperTree(client: ZkClient) {
+class ZooKeeperTree(client: ZkClient, path: String = "") {
 
-  def displayTree(f: Entry => Unit): Unit = displayTree(0, "", "root")(f)
+  def displayTree(name:String)(f: Entry => Unit): Unit = displayTree(0, path, name)(f)
 
   def displayTree(level: Int, path: String, name: String)(f: Entry => Unit): Unit = {
 
-    val lookup = if (path.isEmpty()) "/" else path
+    val lookup: String = if (path.startsWith("/")) path else "/" + path
 
     val raw = client.getData().forPath(lookup)
-    val value = if( raw == null)  "" else new String(raw)
+    val value = if (raw == null) "" else new String(raw)
     f(Entry(level, lookup, name, value))
 
     // children
@@ -26,4 +26,3 @@ case class ZooKeeperTree(client: ZkClient) {
 
 }
 
-object ZooKeeperTree {}
