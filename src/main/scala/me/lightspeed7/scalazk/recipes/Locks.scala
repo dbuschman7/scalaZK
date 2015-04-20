@@ -13,8 +13,8 @@ object Locks {
   //
   // Distributed Lock 
   // ///////////////////////////////
-  def sharedReentrantLock[T](client: ZkClient, path: String, timeout: Duration)(f: ZkClient => T)(implicit ec: ExecutionContext): Future[Try[T]] = {
-    WrapInFuture.andCatch(client) { client =>
+  def sharedReentrantLock[T](client: ZkClient, path: String, timeout: Duration)(f: ZkClient => T)(implicit ec: ExecutionContext): Future[T] = {
+    WrapInFuture(client) { client =>
       val lock: InterProcessMutex = new InterProcessMutex(client.curator, path)
       try {
         if (lock.acquire(timeout.length, timeout.unit)) f(client)

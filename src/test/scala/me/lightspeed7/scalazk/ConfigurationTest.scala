@@ -24,14 +24,25 @@ class ConfigurationTest extends FunSuite with TestHelper {
     assert(test1 == test2)
   }
 
-  test("MemoryConfiguration should save and restore values") {
-    testSetAndGetOnConfig(new MemoryConfiguration())
-  }
+  test("should store and recall values, and leave cleaned up") {
+    val future = Configuration.initialize(client) map { config =>
+      Await.result(config.setValue("tree/int", 123), timeout)
+      Await.result(config.setValue("tree/long", 1234L), timeout)
+      Await.result(config.setValue("tree/duration", 5 hours), timeout)
+      Await.result(config.setValue("tree/string", "value"), timeout)
+      Await.result(config.setValue("tree/dir1/dir2/value", 1234L), timeout)
 
-  test("ZK Configuration  should store and recall values, and leave cleaned up") {
-    Await.result(Configuration.initialize(client) map { zk => testSetAndGetOnConfig(zk) }, timeout)
+      // test
+      123 should be(Await.result(config.getValue("tree/int", 321), timeout))
+      1234L should be(Await.result(config.getValue("tree/long", 4321L), timeout))
+      (5 hours).toString should be(Await.result(config.getValue("tree/duration", 2 seconds), timeout).toString)
+      "value" should be(Await.result(config.getValue("tree/string", "default"), timeout))
+      1234L should be(Await.result(config.getValue("tree/dir1/dir2/value", 54321L), timeout))
+    }
 
+    val result = Await.result(future, timeout)
     val actual = dumpZKTree(client, "tree")
+
     val expected = """+ tree = 
 |  + dir1 = 
 |  |  + dir2 = 
@@ -68,21 +79,6 @@ class ConfigurationTest extends FunSuite with TestHelper {
   //
   // Private methods
   // /////////////////////////////
-  def testSetAndGetOnConfig(config: Configuration) = {
-    Await.result(config.setValue("tree/int", 123), timeout)
-    Await.result(config.setValue("tree/long", 1234L), timeout)
-    Await.result(config.setValue("tree/duration", 5 hours), timeout)
-    Await.result(config.setValue("tree/string", "value"), timeout)
-    Await.result(config.setValue("tree/dir1/dir2/value", 1234L), timeout)
-
-    // test
-    123 should be(Await.result(config.getValue("tree/int", 321), timeout))
-    1234L should be(Await.result(config.getValue("tree/long", 4321L), timeout))
-    (5 hours).toString should be(Await.result(config.getValue("tree/duration", 2 seconds), timeout).toString)
-    "value" should be(Await.result(config.getValue("tree/string", "default"), timeout))
-    1234L should be(Await.result(config.getValue("tree/dir1/dir2/value", 54321L), timeout))
-  }
-
   def dumpZKTree(client: ZkClient, path: String): String = {
     def pad(level: Int, buf: String): String = {
       level match {
@@ -92,8 +88,8 @@ class ConfigurationTest extends FunSuite with TestHelper {
     }
 
     val buf: StringBuffer = new StringBuffer
-    new ZooKeeperTree(client, path).displayTree(path) { e =>
-      buf.append(s"${pad(e.level, "")}+ ${e.name} = ${new String(e.value)}\n")
+    val f = new ZooKeeperTree(client, path).displayTree(path, timeout) { e =>
+      buf.append(s"${pad(e.level, "")}+ ${e.name} = ${e.value}\n")
     }
     buf.toString()
   }

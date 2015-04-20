@@ -2,22 +2,30 @@ package me.lightspeed7.scalazk
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeoutException
+
 import scala.concurrent.Await
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.concurrent.Promise
 import scala.concurrent.duration._
+import scala.util.Failure
+import scala.util.Success
+import scala.util.Try
+
 import org.apache.curator.RetryPolicy
 import org.apache.curator.framework._
 import org.apache.curator.retry.ExponentialBackoffRetry
 import org.apache.curator.utils.EnsurePath
-import me.lightspeed7.scalazk.ZkClient._
-import javax.naming.Name
-import org.apache.curator.framework.recipes.locks.InterProcessMutex
-import scala.util.Failure
-import scala.concurrent.ExecutionContext
-import scala.util.Try
-import org.apache.curator.utils.ZKPaths
 import org.apache.curator.utils.InternalACLProvider
+import org.apache.curator.utils.ZKPaths
+import org.apache.zookeeper.CreateMode
+import org.apache.zookeeper.KeeperException.NoNodeException
+import org.apache.zookeeper.data.ACL
 import org.apache.zookeeper.data.Stat
+
+import me.lightspeed7.scalazk.Watcher.WatcherContext
+import me.lightspeed7.scalazk.Watcher.ZkWatchedEvent
+import me.lightspeed7.scalazk.ZkClient._
 
 object ZkClient {
   def ZkClientBuilder(serverList: Seq[InetSocketAddress]) = builder(serverList)
@@ -102,22 +110,23 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
     }
   }
 
-  def mkdirs(path: String)(implicit ec: ExecutionContext): Future[Try[Unit]] = {
+  def mkdirs(path: String)(implicit ec: ExecutionContext): Future[Boolean] = {
     mkdirs(path, true, null)
   }
 
-  def mkdirs(path: String, makeLastNode: Boolean)(implicit ec: ExecutionContext): Future[Try[Unit]] = {
+  def mkdirs(path: String, makeLastNode: Boolean)(implicit ec: ExecutionContext): Future[Boolean] = {
     mkdirs(path, makeLastNode, null)
   }
 
-  def mkdirs(path: String, makeLastNode: Boolean, aclProvider: InternalACLProvider)(implicit ec: ExecutionContext): Future[Try[Unit]] = {
-    WrapInFuture.andCatch(this) { client =>
+  def mkdirs(path: String, makeLastNode: Boolean, aclProvider: InternalACLProvider)(implicit ec: ExecutionContext): Future[Boolean] = {
+    WrapInFuture(this) { client =>
       ZKPaths.mkdirs(client.curator.getZookeeperClient().getZooKeeper(), path, makeLastNode, aclProvider)
+      true
     }
   }
 
-  def ensurePath(path: String)(implicit ec: ExecutionContext): Future[Try[Boolean]] = {
-    WrapInFuture.andCatch(this) { client =>
+  def ensurePath(path: String)(implicit ec: ExecutionContext): Future[Boolean] = {
+    WrapInFuture(this) { client =>
       val fullPath = path
       new EnsurePath(fullPath).ensure(curator.getZookeeperClient())
       true
@@ -125,15 +134,143 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
   }
 
   // pass through methods 
-  def checkExists() = curator.checkExists()
+  def exists(path: String)(implicit ec: ExecutionContext): Future[Boolean] = {
+    val p = Promise[Boolean]
+    Future {
+       Try(curator.checkExists().forPath(path)) match { 
+         case Success(result) => { 
+           p success (result != null) // treat null as not-exists
+         }
+         case Failure(ex) => { 
+           println("Exception is ${ex}")
+           if (ex.isInstanceOf[NoNodeException]) p success false else p failure ex
+         }
+       }
+    }
+    p.future
+  }
+
+  def existsWithWatcher(path: String)(f: ZkWatchedEvent => Unit = identity)(implicit ec: ExecutionContext): Future[Option[WatcherContext]] = {
+    val r = Watcher.addWatcher(this, path)(f) map { context =>
+      val stat = curator.checkExists().forPath(path)
+      Some(context)
+    }
+    r
+  }
+
   def close() = if (isStarted()) curator.close()
-  def create() = curator.create()
-  def delete() = curator.delete()
-  def getChildren() = curator.getChildren()
-  def getData() = curator.getData()
+
+  def create(path: String, data: Array[Byte], createParents: Boolean = false,
+             disp: CreateMode = CreateMode.PERSISTENT, acl: Option[Seq[ACL]] = None)(implicit ec: ExecutionContext): Future[String] = {
+    import scala.collection.JavaConversions._
+    val p = Promise[String]
+    Future {
+      val f1 = curator.create()
+      val f2 = if (createParents) f1.creatingParentsIfNeeded() else f1
+      val f3 = f2.withMode(disp)
+      val f4 = acl match {
+        case None      => f3
+        case Some(acl) => f3.withACL(scala.collection.JavaConversions.seqAsJavaList(acl))
+      }
+      Try(f4.forPath(path, data)) match {
+        case Success(result) => p success (result)
+        case Failure(ex)     => p failure (ex)
+      }
+    }
+    p.future
+  }
+
+  def delete(path: String, children: Boolean = false, version: Option[Int] = None)(implicit ec: ExecutionContext): Future[Unit] = {
+    val p = Promise[Unit]
+    Future {
+      val f1 = curator.delete()
+      val f2 = if (children) f1.deletingChildrenIfNeeded() else f1
+      val f3 = version match {
+        case None          => f2
+        case Some(version) => f2.withVersion(version)
+      }
+      Try(f3.forPath(path)) match {
+        case Success(void) => p success ()
+        case Failure(ex)   => p failure (ex)
+      }
+    }
+    p.future
+  }
+
+  def getACL(path: String)(implicit ec: ExecutionContext): Future[Seq[ACL]] = {
+    val p = Promise[Seq[ACL]]
+    Future {
+      val f1 = curator.getACL()
+      Try(f1.forPath(path)) match {
+        case Success(result) => p success (scala.collection.JavaConversions.collectionAsScalaIterable(result).toSeq)
+        case Failure(ex)     => p failure (ex)
+      }
+    }
+    p.future
+  }
+
+  def children(path: String)(implicit ec: ExecutionContext): Future[Seq[String]] = {
+    val p = Promise[Seq[String]]
+    Future {
+      val f1 = curator.getChildren()
+      Try(f1.forPath(path)) match {
+        case Success(result) => p success (scala.collection.JavaConversions.collectionAsScalaIterable(result).toSeq)
+        case Failure(ex)     => p failure (ex)
+      }
+    }
+    p.future
+  }
+
+  def get(path: String)(implicit ec: ExecutionContext): Future[Array[Byte]] = {
+    val p = Promise[Array[Byte]]
+    Future {
+      val f1 = curator.getData()
+      Try(f1.forPath(path)) match {
+        case Success(result) => p success result
+        case Failure(ex)     => p failure (ex)
+      }
+    }
+    p.future
+
+  }
+
+  def getCuratorClient() = curator
   def getZookeeperClient() = curator.getZookeeperClient()
   def hasNamespace(): Boolean = { (curator.getNamespace() notBlank) isDefined }
-  def setData() = curator.setData()
+
+  def setACL(path: String, acl: Seq[ACL], version: Option[Int])(implicit ec: ExecutionContext): Future[Stat] = {
+    val p = Promise[Stat]
+    Future {
+      val f1 = curator.setACL()
+      val f2 = version match {
+        case None          => f1
+        case Some(version) => f1.withVersion(version)
+      }
+      val aclList = scala.collection.JavaConversions.seqAsJavaList(acl)
+      Try(f2.withACL(aclList).forPath(path)) match {
+        case Success(stat) => p success stat
+        case Failure(ex)   => p failure (ex)
+      }
+    }
+    p.future
+  }
+
+  def set(path: String, data: Array[Byte], createParents:Boolean = false, version: Option[Int] = None)(implicit ec: ExecutionContext): Future[Stat] = {
+    val p = Promise[Stat]
+    Future {
+      val f1 = curator.setData()
+      val f3 = version match {
+        case None          => f1
+        case Some(version) => f1.withVersion(version)
+      }
+      Try(f3.forPath(path, data)) match {
+        case Success(stat) => p success stat
+        case Failure(ex)   => p failure (ex)
+      }
+    }
+    p.future
+  }
+
   def shutdown() = close() // sugar
 }
 

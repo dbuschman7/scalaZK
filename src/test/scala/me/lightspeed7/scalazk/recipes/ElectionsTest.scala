@@ -34,35 +34,37 @@ class ElectionsTest extends FunSuite with TestHelper {
       leaderLatched.set(true)
     }
     val result = Await.result(latch, timeout)
-    result.isSuccess should be(true)
     leaderLatched.get() should be(true)
   }
 
   test("leader latch fails 1") {
-
     val latch = Elections.leaderLatch(client, s"${baseDir}/leaderLatch2", Some("foo2"))(5 seconds) { client =>
       throw new TimeoutException("Mine")
     }
-    val result = Await.result(latch, timeout)
-    result.isFailure should be(true)
-    result.recover { case t => t.getMessage() should be("Mine") }
+    val result = Await.ready(latch, timeout)
+    latch.recover { case t => t.getMessage() should be("Mine") }
   }
 
   test("leader latch times out") {
+    val leader2Latched: AtomicBoolean = new AtomicBoolean(false)
 
     val latch1 = Elections.leaderLatch(client, s"${baseDir}/leaderLatch3", Some("foo2"))(5 seconds) { client =>
       println("Latch 1 sleeping")
       Thread.sleep(5000)
       println("Latch 1 releasing")
     }
+
+    println("Starting latch 2")
     val latch2 = Elections.leaderLatch[String](client, s"${baseDir}/leaderLatch3", Some("foo2"))(2 seconds) { client =>
       println("NO!! - Latch 2 body executing")
+      leader2Latched.set(true)
       "DaVe."
     }
-    val result = Await.result(latch2, timeout)
-    result.isFailure should be(true)
-    result.recover { case t => t.getMessage() should be("Mine") }
-    Await.result(latch1, timeout)
+
+    val result2 = Await.ready(latch2, timeout)
+    val result1 = Await.ready(latch1, timeout)
+    latch2.recover { case t => t.getMessage() should be("Mine") }
+    leader2Latched.get() should be(false)
 
   }
 }

@@ -12,8 +12,8 @@ object ApplicationBuild extends Build {
 
   val appName = "scalaZK"
 
-  val branch = ""; // "git rev-parse --abbrev-ref HEAD".!!.trim
-  val commit = ""; // "git rev-parse --short HEAD".!!.trim
+  val branch = "git rev-parse --abbrev-ref HEAD".!!.trim
+  val commit = "git rev-parse --short HEAD".!!.trim
   val buildTime = (new java.text.SimpleDateFormat("yyyyMMdd-HHmmss")).format(new java.util.Date())
 
   val major = 0
@@ -23,6 +23,7 @@ object ApplicationBuild extends Build {
   val buildTag = scala.util.Properties.envOrElse("BUILD_TAG", "jenkins-Developer-0000.")
 
   val scalaVersion = scala.util.Properties.versionString.substring(8)
+
 
   println()
   println(s"App Name      => ${appName}")
@@ -47,16 +48,17 @@ object ApplicationBuild extends Build {
 
     //
     // Test Deps
-    "org.scalatest" % "scalatest_2.10" % "2.2.1" % "test",
-    "junit" % "junit" % "4.8.1" % "test"
+    "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+    
+    // 
     )
 
-  val repos = Seq(
-    )
+  val repos = Seq()
 
-  val geoIpService = Project("scalaZK", file("."))
+  val scalaZK = Project("scalaZK", file("."))
     .settings(scalacOptions ++= scalaBuildOptions)
     .settings(
+      crossScalaVersions := Seq("2.10.4", "2.11.4"),
       version := appVersion,
       libraryDependencies ++= appDependencies,
       sourceGenerators in Compile <+= buildInfo,
@@ -79,7 +81,7 @@ object ApplicationBuild extends Build {
         "minor" -> { minor },
         "patch" -> { patch }) //
         )
-    
+
 }
 
 

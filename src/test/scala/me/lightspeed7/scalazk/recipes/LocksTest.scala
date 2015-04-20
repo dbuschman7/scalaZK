@@ -17,7 +17,7 @@ class LocksTest extends FunSuite with TestHelper {
 
     val result = Await.result(future, timeout)
     future.isCompleted should be(true)
-    result.get should be("String")
+    result should be("String")
   }
 
   test("distributed lock failed on thrown exception") {
@@ -28,10 +28,9 @@ class LocksTest extends FunSuite with TestHelper {
       throw new Exception(msg)
     }
 
-    val result = Await.result(future, timeout)
+    val result = Await.ready(future, timeout)
     future.isCompleted should be(true)
-    result.isFailure should be(true)
-    result.recover {
+    future.recover {
       case t => t.getMessage() should be(msg)
     }
   }
