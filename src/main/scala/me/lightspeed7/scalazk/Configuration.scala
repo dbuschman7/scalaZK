@@ -21,7 +21,7 @@ case class Configuration(client: ZkClient) {
     getValue(key) map { result =>
       result match {
         case Some(value) => new String(value)
-        case None        => setValue(key, default, true); default
+        case None        => default
       }
     }
   }
