@@ -17,13 +17,12 @@ object ApplicationBuild extends Build {
   val buildTime = (new java.text.SimpleDateFormat("yyyyMMdd-HHmmss")).format(new java.util.Date())
 
   val major = 0
-  val minor = 1
+  val minor = 2
   val patch = 0
-  val appVersion = s"$major.$minor.$patch-$commit"
+  val appVersion = s"$major.$minor.$patch"
   val buildTag = scala.util.Properties.envOrElse("BUILD_TAG", "jenkins-Developer-0000.")
 
   val scalaVersion = scala.util.Properties.versionString.substring(8)
-
 
   println()
   println(s"App Name      => ${appName}")
@@ -49,7 +48,6 @@ object ApplicationBuild extends Build {
     //
     // Test Deps
     "org.scalatest" %% "scalatest" % "2.2.1" % "test"
-    
     // 
     )
 
