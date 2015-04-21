@@ -14,7 +14,7 @@ This library only depends on the Apache Curator library which depends on the Zoo
 
 The library is publish in the Maven central repo, to add it as a dependency: 
 ```
-"me.lightspeed7.scalazk" %% "scalaZK" % "0.2.0" 
+"me.lightspeed7.scalazk" %% "scalaZK" % "0.2.2" 
 ```
 Versions for Scala 2.10.x and 2.11.x are available.
 
