@@ -1,19 +1,16 @@
 package me.lightspeed7.scalazk
 import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.Map
-import scala.collection.mutable.SynchronizedMap
+
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util._
 import scala.util.Success
 import scala.util.Try
+
 import org.apache.curator.RetryLoop
 import org.apache.curator.utils.EnsurePath
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext
-import scala.collection.concurrent.TrieMap
-import org.apache.zookeeper.data.Stat
 
 case class Configuration(client: ZkClient) {
 

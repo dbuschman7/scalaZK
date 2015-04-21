@@ -2,7 +2,6 @@ package me.lightspeed7.scalazk
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeoutException
-
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -11,7 +10,6 @@ import scala.concurrent.duration._
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
-
 import org.apache.curator.RetryPolicy
 import org.apache.curator.framework._
 import org.apache.curator.retry.ExponentialBackoffRetry
@@ -22,12 +20,14 @@ import org.apache.zookeeper.CreateMode
 import org.apache.zookeeper.KeeperException.NoNodeException
 import org.apache.zookeeper.data.ACL
 import org.apache.zookeeper.data.Stat
-
 import me.lightspeed7.scalazk.Watcher.WatcherContext
 import me.lightspeed7.scalazk.Watcher.ZkWatchedEvent
 import me.lightspeed7.scalazk.ZkClient._
+import scala.Option
 
 object ZkClient {
+  import Implicits._
+
   def ZkClientBuilder(serverList: Seq[InetSocketAddress]) = builder(serverList)
 
   private def builder(serverList: Seq[InetSocketAddress], retryPolicy: RetryPolicy = new ExponentialBackoffRetry(1000, 3)): CuratorFrameworkFactory.Builder = {
@@ -70,6 +70,8 @@ object ZkClient {
 
 case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seconds) {
   import org.apache.curator.framework.imps.CuratorFrameworkState._
+  import Implicits._
+
   def isStarted() = curator.getState() match {
     case STARTED => true
     case _       => false
@@ -137,15 +139,15 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
   def exists(path: String)(implicit ec: ExecutionContext): Future[Boolean] = {
     val p = Promise[Boolean]
     Future {
-       Try(curator.checkExists().forPath(path)) match { 
-         case Success(result) => { 
-           p success (result != null) // treat null as not-exists
-         }
-         case Failure(ex) => { 
-           println("Exception is ${ex}")
-           if (ex.isInstanceOf[NoNodeException]) p success false else p failure ex
-         }
-       }
+      Try(curator.checkExists().forPath(path)) match {
+        case Success(result) => {
+          p success (result != null) // treat null as not-exists
+        }
+        case Failure(ex) => {
+          println("Exception is ${ex}")
+          if (ex.isInstanceOf[NoNodeException]) p success false else p failure ex
+        }
+      }
     }
     p.future
   }
@@ -162,7 +164,6 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
 
   def create(path: String, data: Array[Byte], createParents: Boolean = false,
              disp: CreateMode = CreateMode.PERSISTENT, acl: Option[Seq[ACL]] = None)(implicit ec: ExecutionContext): Future[String] = {
-    import scala.collection.JavaConversions._
     val p = Promise[String]
     Future {
       val f1 = curator.create()
@@ -170,7 +171,7 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
       val f3 = f2.withMode(disp)
       val f4 = acl match {
         case None      => f3
-        case Some(acl) => f3.withACL(scala.collection.JavaConversions.seqAsJavaList(acl))
+        case Some(acl) => f3.withACL(acl)
       }
       Try(f4.forPath(path, data)) match {
         case Success(result) => p success (result)
@@ -180,8 +181,8 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
     p.future
   }
 
-  def delete(path: String, children: Boolean = false, version: Option[Int] = None)(implicit ec: ExecutionContext): Future[Unit] = {
-    val p = Promise[Unit]
+  def delete(path: String, children: Boolean = false, version: Option[Int] = None)(implicit ec: ExecutionContext): Future[Boolean] = {
+    val p = Promise[Boolean]
     Future {
       val f1 = curator.delete()
       val f2 = if (children) f1.deletingChildrenIfNeeded() else f1
@@ -190,7 +191,7 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
         case Some(version) => f2.withVersion(version)
       }
       Try(f3.forPath(path)) match {
-        case Success(void) => p success ()
+        case Success(void) => p success (true)
         case Failure(ex)   => p failure (ex)
       }
     }
@@ -202,7 +203,7 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
     Future {
       val f1 = curator.getACL()
       Try(f1.forPath(path)) match {
-        case Success(result) => p success (scala.collection.JavaConversions.collectionAsScalaIterable(result).toSeq)
+        case Success(result) => p success result
         case Failure(ex)     => p failure (ex)
       }
     }
@@ -214,7 +215,7 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
     Future {
       val f1 = curator.getChildren()
       Try(f1.forPath(path)) match {
-        case Success(result) => p success (scala.collection.JavaConversions.collectionAsScalaIterable(result).toSeq)
+        case Success(result) => p success result
         case Failure(ex)     => p failure (ex)
       }
     }
@@ -237,6 +238,10 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
   def getCuratorClient() = curator
   def getZookeeperClient() = curator.getZookeeperClient()
   def hasNamespace(): Boolean = { (curator.getNamespace() notBlank) isDefined }
+  def namespace(): Option[String] = {
+    val raw = curator.getNamespace()
+    if (raw == null || raw.length() == 0) None else Some("/" + raw)
+  }
 
   def setACL(path: String, acl: Seq[ACL], version: Option[Int])(implicit ec: ExecutionContext): Future[Stat] = {
     val p = Promise[Stat]
@@ -246,8 +251,7 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
         case None          => f1
         case Some(version) => f1.withVersion(version)
       }
-      val aclList = scala.collection.JavaConversions.seqAsJavaList(acl)
-      Try(f2.withACL(aclList).forPath(path)) match {
+      Try(f2.withACL(acl).forPath(path)) match {
         case Success(stat) => p success stat
         case Failure(ex)   => p failure (ex)
       }
@@ -255,7 +259,7 @@ case class ZkClient(curator: CuratorFramework, connectTimeout: Duration = 5 seco
     p.future
   }
 
-  def set(path: String, data: Array[Byte], createParents:Boolean = false, version: Option[Int] = None)(implicit ec: ExecutionContext): Future[Stat] = {
+  def set(path: String, data: Array[Byte], createParents: Boolean = false, version: Option[Int] = None)(implicit ec: ExecutionContext): Future[Stat] = {
     val p = Promise[Stat]
     Future {
       val f1 = curator.setData()

@@ -8,7 +8,7 @@ I had a desire and need to use a scala client for Zookeeper that did not include
 
 This library only depends on the Apache Curator library which depends on the Zookeeper Java library to keep things controlled and small.
 
-*NOTE:* There is one gotcha to this, Curator has a direct dependency on Log4j which can cause problems in Play apps, make sure to get your bridges to Slf4j added into your project correctly.
+*NOTE:* There is one gotcha to this, Curator has a direct dependency on Log4j which can cause problems in Play apps, I have bridged log4j over to Slf4j and blocked the log4j dependency so it plays nice with Play Framework apps.
  
 ## Where to find the library
 
@@ -79,6 +79,26 @@ val context = Await.result(listener)
 and it is ready to use. To stop listening for a given watcher:  
 ```
 context.stopListening()
+```
+
+# Transactions 
+A very simple transaction API is available to create atomic sets of operations 
+```
+val future = Transaction.start(client) { ops =>
+  ops :+
+    Create("/transaction/foo", 12345L) :+
+    Set("/transaction/foo", 2345L)
+}
+
+val results = Await.result(future, timeout)
+
+results map { result =>
+  result match {
+    case OperationResult(op, _, _, Some(ex)) =>         ??? // any failure
+    case OperationResult(op, Some(path), None, None) => ??? // create success
+    case OperationResult(op, None, Some(stat), None) => ??? // set success 
+  }
+}
 ```
 
 # Recipes
