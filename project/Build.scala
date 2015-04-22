@@ -19,7 +19,7 @@ object ApplicationBuild extends Build {
 
   val major = 0
   val minor = 2
-  val patch = 2
+  val patch = 4
   val appVersion = s"$major.$minor.$patch"
   val buildTag = scala.util.Properties.envOrElse("BUILD_TAG", "jenkins-Developer-0000.")
 
@@ -48,9 +48,18 @@ object ApplicationBuild extends Build {
 
     //
     // Test Deps
-    "org.scalatest" %% "scalatest" % "2.2.1" % "test"
-    // 
+    "org.scalatest" %% "scalatest" % "2.2.1" % "test" // 
     )
+
+  val pomExtraXml = (
+    <url>http://github.com/dbuschman7/scalaZK</url>
+    <developers>
+      <developer>
+        <id>dbuschman7</id>
+        <name>David Buschman</name>
+        <email>david.buschman7@gmail.com</email>
+      </developer>
+    </developers>)
 
   val repos = Seq()
 
@@ -59,8 +68,16 @@ object ApplicationBuild extends Build {
     .settings(bintrayPublishSettings: _*)
     .settings(
       crossScalaVersions := Seq("2.10.4", "2.11.4"),
+      name := "scalaZK",
+      organization := "me.lightspeed7",
       version := appVersion,
       licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html")),
+      scmInfo := Some(ScmInfo(
+        url("https://github.com/dbuschman7/scalaZK/tree/release-" + version.value),
+        "scm:git:https://github.com/dbuschman7/scalaZK.git",
+        Some("scm:git:https://github.com/dbuschman7/scalaZK.git"))),
+      pomIncludeRepository := { _ => false },
+      pomExtra := pomExtraXml,
       libraryDependencies ++= appDependencies,
       sourceGenerators in Compile <+= buildInfo,
       resolvers ++= repos)
