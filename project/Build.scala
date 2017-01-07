@@ -19,7 +19,7 @@ object ApplicationBuild extends Build {
 
   val major = 0
   val minor = 2
-  val patch = 4
+  val patch = 5
   val appVersion = s"$major.$minor.$patch"
   val buildTag = scala.util.Properties.envOrElse("BUILD_TAG", "jenkins-Developer-0000.")
 
