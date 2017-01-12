@@ -19,7 +19,7 @@ object ApplicationBuild extends Build {
 
   val major = 0
   val minor = 2
-  val patch = 4
+  val patch = 5
   val appVersion = s"$major.$minor.$patch"
   val buildTag = scala.util.Properties.envOrElse("BUILD_TAG", "jenkins-Developer-0000.")
 
@@ -48,7 +48,7 @@ object ApplicationBuild extends Build {
 
     //
     // Test Deps
-    "org.scalatest" %% "scalatest" % "2.2.1" % "test" // 
+    "org.scalatest" %% "scalatest" % "3.0.1" % "test" // 
     )
 
   val pomExtraXml = (
@@ -67,7 +67,7 @@ object ApplicationBuild extends Build {
     .settings(scalacOptions ++= scalaBuildOptions)
     .settings(bintrayPublishSettings: _*)
     .settings(
-      crossScalaVersions := Seq("2.10.4", "2.11.4"),
+      crossScalaVersions := Seq("2.10.4", "2.11.4", "2.12.1"),
       name := "scalaZK",
       organization := "me.lightspeed7",
       version := appVersion,
