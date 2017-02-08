@@ -5,3 +5,7 @@
 target/
 .cache
 .*.html
+/bin/
+
+.cache-main
+.cache-tests

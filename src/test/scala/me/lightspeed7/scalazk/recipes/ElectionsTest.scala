@@ -50,7 +50,7 @@ class ElectionsTest extends FunSuite with TestHelper {
 
     val latch1 = Elections.leaderLatch(client, s"${baseDir}/leaderLatch3", Some("foo2"))(5 seconds) { client =>
       println("Latch 1 sleeping")
-      Thread.sleep(5000)
+      Thread.sleep(6000)
       println("Latch 1 releasing")
     }
 

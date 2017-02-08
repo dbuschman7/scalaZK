@@ -48,8 +48,8 @@ class ConfigurationTest extends FunSuite with TestHelper {
 |  |  + dir2 = 
 |  |  |  + value = 1234
 |  + duration = 5|HOURS
-|  + long = 1234
 |  + int = 123
+|  + long = 1234
 |  + string = value
 """
     actual should be(expected)

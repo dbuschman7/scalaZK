@@ -39,12 +39,12 @@ object ApplicationBuild extends Build {
 
   val appDependencies = Seq(
     // Logging Helper
-    "org.slf4j" % "log4j-over-slf4j" % "1.7.10",
+    "org.slf4j" % "log4j-over-slf4j" % "1.7.22",
 
     // Logic Deps
-    "org.apache.curator" % "curator-framework" % "2.7.1"
+    "org.apache.curator" % "curator-framework" % "2.11.1"
       excludeAll (ExclusionRule(organization = "log4j", name = "log4j")), // never in a play app
-    "org.apache.curator" % "curator-recipes" % "2.7.1",
+    "org.apache.curator" % "curator-recipes" % "2.11.1",
 
     //
     // Test Deps
@@ -67,7 +67,7 @@ object ApplicationBuild extends Build {
     .settings(scalacOptions ++= scalaBuildOptions)
     .settings(bintrayPublishSettings: _*)
     .settings(
-      crossScalaVersions := Seq("2.10.4", "2.11.4", "2.12.1"),
+      crossScalaVersions := Seq("2.10.4", "2.11.8", "2.12.1"),
       name := "scalaZK",
       organization := "me.lightspeed7",
       version := appVersion,

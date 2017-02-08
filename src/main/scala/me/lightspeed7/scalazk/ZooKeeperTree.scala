@@ -29,7 +29,7 @@ class ZooKeeperTree(client: ZkClient, path: String = "")(implicit ec: ExecutionC
 
     // children
     val children = Await.result(client.children(lookup), timeout)
-    children foreach { child =>
+    children.toList.sortBy(identity) foreach { child =>
       displayTree(level + 1, path + "/" + child, child, timeout)(f)
     }
   }
