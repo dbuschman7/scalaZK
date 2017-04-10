@@ -8,7 +8,7 @@ resolvers += Resolver.url(
         Resolver.ivyStylePatterns)
 
 // Publishing
-addSbtPlugin("me.lessis" % "bintray-sbt" % "0.2.1")
+addSbtPlugin("me.lessis" % "bintray-sbt" % "0.3.0")
 
 // Zip packaging
 addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "0.7.4")

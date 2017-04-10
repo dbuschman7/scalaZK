@@ -5,7 +5,6 @@ import java.io.PrintWriter
 import java.io.File
 import sys.process.stringSeqToProcess
 import sbtbuildinfo.Plugin._
-import bintray.Plugin._
 
 import com.typesafe.sbt.packager.Keys._
 
@@ -65,7 +64,6 @@ object ApplicationBuild extends Build {
 
   val scalaZK = Project("scalaZK", file("."))
     .settings(scalacOptions ++= scalaBuildOptions)
-    .settings(bintrayPublishSettings: _*)
     .settings(
       crossScalaVersions := Seq("2.10.4", "2.11.8", "2.12.1"),
       name := "scalaZK",
